@@ -1,0 +1,44 @@
+name: Build and release devcontainer image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure Docker CLI is present
+        run: docker --version
+
+      - name: Build devcontainer image
+        run: docker build -f .devcontainer/Dockerfile -t arch-devcontainer:latest .
+
+      - name: Save image to gzipped tarball
+        run: |
+          docker save arch-devcontainer:latest -o arch-devcontainer.tar
+          gzip -9 arch-devcontainer.tar
+
+      - name: Create GitHub release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: arch-image-${{ github.run_number }}-${{ github.sha }}
+          release_name: "arch devcontainer image ${{ github.run_number }}"
+          body: |
+            Built devcontainer image from commit ${{ github.sha }} by workflow run ${{ github.run_id }}.
+          draft: false
+          prerelease: false
+
+      - name: Upload gzipped tar to release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./arch-devcontainer.tar.gz
+          asset_name: arch-devcontainer.tar.gz
+          asset_content_type: application/gzip
